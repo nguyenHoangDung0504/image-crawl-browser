@@ -1,68 +1,59 @@
-import puppeteer, { Page } from 'puppeteer';
+// Core
 import fs from 'fs';
 import path from 'path';
-import blockADs from './page_handlers/blockADs.js';
-import setupGracefulExit from './browser_handler/setupGracefulExit.js';
-import loadBlacklist from './resources/loadBlacklist.js';
-import injectSniffer from './page_handlers/injectSniffer.js';
-import userBrowserConfig from './user-browser-config.js';
+import puppeteer, { Page } from 'puppeteer';
 
-/**@type {RegExp[]} */
-const blacklistPatterns = loadBlacklist();
+// Page handlers
+import blockADs from './page_handlers/blockADs.js';
+import injectSniffer from './page_handlers/injectSniffer.js';
+
+// Browser handlers
+import setupBrowserExit from './browser_handler/setupBrowserExit.js';
+
+// Configs
+import { BROWSER_CONFIG } from './user-configs.js';
+import loadBlacklist from './resources/loadBlacklist.js';
 
 /** @type {Map<Page, Map<string, Buffer>>} */
 const pageImageMaps = new Map();
+const blacklistPatterns = loadBlacklist();
 
-(async () => {
-	const browser = setupGracefulExit(
-		await puppeteer.launch({
-			headless: false,
-			defaultViewport: null,
-			args: ['--start-maximized'],
-			...userBrowserConfig,
-		})
-	);
+const browser = await puppeteer.launch({
+	headless: false,
+	defaultViewport: null,
+	args: ['--start-maximized'],
+	...BROWSER_CONFIG,
+});
 
-	const [page] = await browser.pages();
-	pageImageMaps.set(page, new Map());
-	await setupPage(page);
-	page.on('close', () => {
-		pageImageMaps.delete(page);
-		console.log('> [Info] Cleaned up images for closed tab\n');
-	});
+// Theo dõi để setup page (tab) mới
+browser.on('targetcreated', async (target) => {
+	if (target.type() !== 'page') return;
 
-	// Theo dõi tab mới
-	browser.on('targetcreated', async (target) => {
-		if (target.type() !== 'page') return;
+	try {
+		const newPage = await target.page();
+		if (!newPage || newPage.isClosed()) return;
+		await setupPage(newPage);
+	} catch (err) {
+		console.warn('> [Warn] Failed to setup new page:', err.message);
+	}
+});
 
-		try {
-			const newPage = await target.page();
-			if (!newPage || newPage.isClosed()) return;
+setupBrowserExit(browser);
 
-			pageImageMaps.set(newPage, new Map());
-			await setupPage(newPage);
-
-			newPage.on('close', () => {
-				pageImageMaps.delete(newPage);
-				console.log('> [Info] Cleaned up images for closed tab\n');
-			});
-		} catch (err) {
-			console.warn('> [Warn] Failed to setup new page:', err.message);
-		}
-	});
-})();
+// Tạo trang blank đầu tiên
+const [page] = await browser.pages();
+await setupPage(page);
 
 /**
  * @param {Page} page
  */
 async function setupPage(page) {
+	pageImageMaps.set(page, new Map());
+
 	const imageMap = pageImageMaps.get(page);
 	await page.setRequestInterception(true);
 
-	if (!imageMap) {
-		console.error('> [Error] No imageMap found for page!');
-		return;
-	}
+	if (!imageMap) return console.error('> [Error] No imageMap found for page!');
 
 	// Block Ads
 	page.on('request', (request) => {
@@ -72,9 +63,7 @@ async function setupPage(page) {
 		if (isBlocked) {
 			console.log(`\t\t> [Info] Chặn: ${url}`);
 			request.abort();
-		} else {
-			request.continue();
-		}
+		} else request.continue();
 	});
 
 	// Capture images
@@ -119,16 +108,18 @@ async function setupPage(page) {
 	await page.evaluateOnNewDocument(blockADs);
 	await injectSniffer(page);
 
+	let lastURL = page.url();
 	page.on('framenavigated', async (frame) => {
-		const pageUrl = page.url();
-		const imageCount = imageMap.size;
-
-		console.log(`> [Info] Navigation detected to [${pageUrl}] - Clearing ${imageCount} cached images`);
-		imageMap.clear();
-
 		if (frame === page.mainFrame()) {
+			// Xóa ảnh ở trang cũ
+			const pageUrl = page.url();
+			if (lastURL !== pageUrl) {
+				imageMap.clear();
+				lastURL = pageUrl;
+				console.log(`> [Info] Navigation detected to [${pageUrl}] - Clearing ${imageMap.size} cached images`);
+			} else console.log('> [Info] Reload detected, ignore clear images');
+
 			try {
-				// await page.waitForFunction(() => document.body, { timeout: 10000 });
 				await page.waitForSelector('body', { timeout: 10000 });
 				await injectSniffer(page);
 				console.log('> [Info] Script đã được inject lại sau khi chuyển trang');
@@ -136,5 +127,10 @@ async function setupPage(page) {
 				console.warn('> [Error] Inject thất bại:', err);
 			}
 		}
+	});
+
+	page.on('close', () => {
+		pageImageMaps.delete(page);
+		console.log('> [Info] Cleaned up images for closed tab\n');
 	});
 }

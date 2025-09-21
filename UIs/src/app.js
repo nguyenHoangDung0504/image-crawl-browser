@@ -290,7 +290,7 @@ function updateSelectedCount(root) {
 
 	if (selectedCount && grid) {
 		const count = grid.querySelectorAll('input[type="checkbox"]:checked').length;
-		selectedCount.textContent = `${count} ảnh được chọn`;
+		selectedCount.textContent = `${count} ảnh được chọn (Note: Số lượng ảnh bằng STT cuối - đầu + 1)`;
 	}
 }
 

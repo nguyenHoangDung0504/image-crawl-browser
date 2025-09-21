@@ -43,28 +43,13 @@ export default async function injectSniffer(page) {
 		}
 
 		// Inject CSS
-		const style = document.createElement('style');
-		style.id = 'image-sniffer-styles';
-		if (usingShadowDOM) {
-			// Shadow DOM - CSS sẽ được isolated tự động
+		{
+			const style = document.createElement('style');
+			style.id = 'image-sniffer-styles';
 			style.textContent = css;
-			shadowRoot.appendChild(style);
-		} else {
-			// Regular DOM - cần namespace CSS
-			const namespacedCSS = css.replace(/(^|\})\s*([^{]+)\s*\{/g, '$1 #image-sniffer-container $2 {');
-			style.textContent = `
-				#image-sniffer-container { 
-					all: initial; 
-					font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-				}
-				#image-sniffer-container *, #image-sniffer-container *::before, #image-sniffer-container *::after { 
-					all: unset; 
-					display: revert;
-					box-sizing: border-box;
-				}
-				${namespacedCSS}
-			`;
-			document.head.appendChild(style);
+
+			if (usingShadowDOM) shadowRoot.appendChild(style);
+			else document.head.appendChild(style);
 		}
 
 		// Inject HTML

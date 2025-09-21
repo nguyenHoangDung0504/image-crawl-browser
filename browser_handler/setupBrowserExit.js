@@ -2,7 +2,7 @@
  * Đảm bảo thoát chương trình an toàn, chỉ gọi exit một lần.
  * @param {import('puppeteer').Browser} browser - Instance trình duyệt Puppeteer.
  */
-export default function setupGracefulExit(browser) {
+export default function setupBrowserExit(browser) {
 	let isExiting = false;
 
 	async function exitSafely(code = 0) {
@@ -15,13 +15,10 @@ export default function setupGracefulExit(browser) {
 			if (browser?.connected) {
 				console.log('> [Info] Đang đóng trình duyệt...');
 
-				// Nếu bạn dùng userDataDir thật, thì nên kill process thay vì close
+				// Nếu dùng userDataDir thật thì nên kill process thay vì close
 				const browserProcess = browser.process();
-				if (browserProcess) {
-					browserProcess.kill('SIGTERM'); // cho phép browser tự shutdown an toàn
-				} else {
-					await browser.close(); // fallback nếu không lấy được process
-				}
+				if (browserProcess) browserProcess.kill('SIGTERM'); // cho phép browser tự shutdown an toàn
+				else await browser.close(); // fallback nếu không lấy được process
 			}
 		} catch (err) {
 			console.warn('> [Warn] Đóng trình duyệt thất bại:', err.message);
