@@ -9,9 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  */
 export default function loadBlacklist() {
 	const blacklistPath = path.join(__dirname, '/black-list-ADs.txt');
-	if (!fs.existsSync(blacklistPath)) {
-		throw new Error('> [loadBlacklist] Blacklist path not found!');
-	}
+	if (!fs.existsSync(blacklistPath)) throw new Error('> [loadBlacklist] Blacklist path not found!');
 
 	return fs
 		.readFileSync(blacklistPath, 'utf-8')

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
- * @param {Page} page
+ * @param {import('puppeteer').Page} page
  */
 export default async function injectSniffer(page) {
 	// Đọc file HTML và CSS từ disk

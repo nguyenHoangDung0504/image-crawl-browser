@@ -59,7 +59,12 @@ function setupEventListeners(root) {
 		'#save-btn',
 		'#folder-input',
 		'#images-grid',
-	].map((selector) => root.querySelector(selector)));
+	].map((selector) => {
+		const ele = root.querySelector(selector);
+		if (!ele || !(ele instanceof HTMLElement))
+			throw new Error(`Miss required element with selector::[${selector}]`);
+		return ele;
+	}));
 
 	if (queryRs.some((el) => !el)) {
 		console.error('Required elements not found in shadow DOM');
@@ -89,7 +94,7 @@ function setupEventListeners(root) {
 	// Show modal when trigger button is clicked
 	triggerBtn.addEventListener('click', async () => {
 		try {
-			let urls = await window.getCapturedImageUrls();
+			let urls = await window.getCapturedImageURLs();
 
 			if (!urls || urls.length === 0) {
 				showToast('Chưa có ảnh nào được bắt!', 'info', root);
@@ -147,8 +152,9 @@ function setupEventListeners(root) {
 	selectAllBtn.addEventListener('click', () => {
 		const checkboxes = imagesGrid.querySelectorAll('input[type="checkbox"]');
 		checkboxes.forEach((checkbox) => {
+			if (!(checkbox instanceof HTMLInputElement)) throw new Error('Checkbox type mismatch');
 			checkbox.checked = true;
-			checkbox.closest('.image-item').classList.add('selected');
+			checkbox.closest('.image-item')?.classList.add('selected');
 		});
 		updateSelectedCount(root);
 	});
@@ -156,7 +162,12 @@ function setupEventListeners(root) {
 	// Select range of images between exactly two checked
 	selectRangeBtn.addEventListener('click', () => {
 		const checkboxes = Array.from(imagesGrid.querySelectorAll('input[type="checkbox"]'));
-		const checkedIndices = checkboxes.map((cb, idx) => (cb.checked ? idx : -1)).filter((idx) => idx !== -1);
+		const checkedIndices = checkboxes
+			.map((cb, idx) => {
+				if (!(cb instanceof HTMLInputElement)) throw new Error('Checkbox type mismatch');
+				return cb.checked ? idx : -1;
+			})
+			.filter((idx) => idx !== -1);
 
 		if (checkedIndices.length !== 2) {
 			showToast('Khoảng không hợp lệ, chỉ được chọn 2 ảnh!', 'error', root);
@@ -168,8 +179,10 @@ function setupEventListeners(root) {
 
 		// Tick all checkboxes in range
 		for (let i = start; i <= end; i++) {
-			checkboxes[i].checked = true;
-			checkboxes[i].closest('.image-item').classList.add('selected');
+			const checkbox = checkboxes[i];
+			if (!(checkbox instanceof HTMLInputElement)) throw new Error('Checkbox type mismatch');
+			checkbox.checked = true;
+			checkbox.closest('.image-item')?.classList.add('selected');
 		}
 
 		updateSelectedCount(root);
@@ -179,8 +192,9 @@ function setupEventListeners(root) {
 	deselectAllBtn.addEventListener('click', () => {
 		const checkboxes = imagesGrid.querySelectorAll('input[type="checkbox"]');
 		checkboxes.forEach((checkbox) => {
+			if (!(checkbox instanceof HTMLInputElement)) throw new Error('Checkbox type mismatch');
 			checkbox.checked = false;
-			checkbox.closest('.image-item').classList.remove('selected');
+			checkbox.closest('.image-item')?.classList.remove('selected');
 		});
 		updateSelectedCount(root);
 	});
@@ -188,6 +202,8 @@ function setupEventListeners(root) {
 	// Save selected images
 	saveBtn.addEventListener('click', async () => {
 		const selectedUrls = getSelectedImageUrls(imagesGrid);
+		if (!(folderInput instanceof HTMLInputElement)) throw new Error('Folder input type mismatch');
+		if (!(saveBtn instanceof HTMLButtonElement)) throw new Error('Save button type mismatch');
 		const folder = folderInput.value.trim();
 
 		if (!folder) {
@@ -207,7 +223,7 @@ function setupEventListeners(root) {
 
 			showToast(`Đang lưu ${selectedUrls.length} ảnh...`, 'info', root);
 
-			await window.saveSelectedImages(selectedUrls, folder);
+			await window.saveSelectedImages(folder, selectedUrls);
 
 			showToast(`Đã lưu thành công ${selectedUrls.length} ảnh vào thư mục "${folder}"!`, 'success', root);
 			closeModal();
@@ -222,14 +238,17 @@ function setupEventListeners(root) {
 
 	// Enter key to save
 	folderInput.addEventListener('keydown', (e) => {
-		if (e.key === 'Enter') {
-			saveBtn.click();
-		}
+		if (e.key === 'Enter') saveBtn.click();
 	});
 }
 
 // UIs ====================================================================================================================
 
+/**
+ * @param {string[]} urls
+ * @param {HTMLElement} grid
+ * @param {ShadowRoot | Document} root
+ */
 function populateImagesGrid(urls, grid, root) {
 	grid.innerHTML = '';
 
@@ -247,7 +266,9 @@ function populateImagesGrid(urls, grid, root) {
         `;
 
 		const checkbox = item.querySelector('input[type="checkbox"]');
+		if (!(checkbox instanceof HTMLInputElement)) throw new Error('Checkbox type mismatch');
 		const img = item.querySelector('img');
+		if (!(img instanceof HTMLImageElement)) throw new Error('Image type mismatch');
 
 		// Handle checkbox change
 		checkbox.addEventListener('change', () => {
@@ -269,21 +290,28 @@ function populateImagesGrid(urls, grid, root) {
 
 		// Click item to toggle checkbox
 		item.addEventListener('click', (e) => {
-			if (!e.target.classList.contains('url-preview')) {
-				checkbox.checked = !checkbox.checked;
-				checkbox.dispatchEvent(new Event('change'));
-			}
+			if (e.target instanceof HTMLElement)
+				if (!e.target.classList.contains('url-preview')) {
+					checkbox.checked = !checkbox.checked;
+					checkbox.dispatchEvent(new Event('change'));
+				}
 		});
 
 		grid.appendChild(item);
 	});
 }
 
+/**
+ * @param {HTMLElement} grid
+ */
 function getSelectedImageUrls(grid) {
 	const selectedCheckboxes = grid.querySelectorAll('input[type="checkbox"]:checked');
-	return Array.from(selectedCheckboxes).map((checkbox) => checkbox.dataset.url);
+	return Array.from(selectedCheckboxes).map((checkbox) => /** @type {HTMLElement} */ (checkbox).dataset.url);
 }
 
+/**
+ * @param {ShadowRoot | Document} root
+ */
 function updateSelectedCount(root) {
 	const selectedCount = root.querySelector('#selected-count');
 	const grid = root.querySelector('#images-grid');
@@ -294,6 +322,11 @@ function updateSelectedCount(root) {
 	}
 }
 
+/**
+ * @param {string} message
+ * @param {string} type
+ * @param {ShadowRoot | Document} root
+ */
 function showToast(message, type = 'info', root) {
 	const toastContainer = root.querySelector('#toast-container');
 	if (!toastContainer) return;
@@ -327,6 +360,10 @@ function showToast(message, type = 'info', root) {
 
 // Utils ====================================================================================================================
 
+/**
+ * @param {string} url
+ * @param {number} maxLength
+ */
 function truncateUrl(url, maxLength) {
 	if (url.length <= maxLength) return url;
 
