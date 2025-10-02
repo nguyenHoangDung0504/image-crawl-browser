@@ -32,6 +32,11 @@ async function initImageSniffer() {
 	throw new Error('image-sniffer-container not found after 3 retries');
 }
 
+const puppeteer = {
+	getCapturedImageURLs: window.getCapturedImageURLs,
+	saveSelectedImages: window.saveSelectedImages,
+};
+
 // Events ====================================================================================================================
 
 /**
@@ -94,7 +99,7 @@ function setupEventListeners(root) {
 	// Show modal when trigger button is clicked
 	triggerBtn.addEventListener('click', async () => {
 		try {
-			let urls = await window.getCapturedImageURLs();
+			let urls = await puppeteer.getCapturedImageURLs();
 
 			if (!urls || urls.length === 0) {
 				showToast('Chưa có ảnh nào được bắt!', 'info', root);
@@ -206,12 +211,6 @@ function setupEventListeners(root) {
 		if (!(saveBtn instanceof HTMLButtonElement)) throw new Error('Save button type mismatch');
 		const folder = folderInput.value.trim();
 
-		if (!folder) {
-			showToast('Vui lòng nhập tên thư mục!', 'error', root);
-			folderInput.focus();
-			return;
-		}
-
 		if (selectedUrls.length === 0) {
 			showToast('Vui lòng chọn ít nhất một ảnh!', 'error', root);
 			return;
@@ -223,9 +222,9 @@ function setupEventListeners(root) {
 
 			showToast(`Đang lưu ${selectedUrls.length} ảnh...`, 'info', root);
 
-			await window.saveSelectedImages(folder, selectedUrls);
+			await puppeteer.saveSelectedImages(selectedUrls, folder);
 
-			showToast(`Đã lưu thành công ${selectedUrls.length} ảnh vào thư mục "${folder}"!`, 'success', root);
+			showToast(`Đã lưu thành công ${selectedUrls.length} ảnh vào thư mục "${folder ?? 'mặc định'}"!`, 'success', root);
 			closeModal();
 		} catch (error) {
 			console.error('Error saving images:', error);
@@ -306,7 +305,11 @@ function populateImagesGrid(urls, grid, root) {
  */
 function getSelectedImageUrls(grid) {
 	const selectedCheckboxes = grid.querySelectorAll('input[type="checkbox"]:checked');
-	return Array.from(selectedCheckboxes).map((checkbox) => /** @type {HTMLElement} */ (checkbox).dataset.url);
+	return Array.from(selectedCheckboxes).map((checkbox) => {
+		const url = /** @type {HTMLElement} */ (checkbox).dataset.url;
+		if (!url) throw new Error('URL is undefined');
+		return url;
+	});
 }
 
 /**

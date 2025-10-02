@@ -21,7 +21,7 @@ export default function setupBrowserExit(browser) {
 				else await browser.close(); // fallback nếu không lấy được process
 			}
 		} catch (err) {
-			console.warn('> [Warn] Đóng trình duyệt thất bại:', err.message);
+			console.warn('> [Warn] Đóng trình duyệt thất bại:', /**@type {Error}*/ (err).message);
 			code = 1;
 		} finally {
 			setTimeout(() => process.exit(code), 500); // delay nhẹ để tránh exit trước khi browser flush

@@ -1,13 +1,14 @@
 import fs from 'fs';
 import path from 'path';
 import { getPageImageRegistry } from '../../../resources/registries.js';
+import { STORAGE_CONFIG } from '../../../user-configs.js';
 
 /**
  * @param {import('puppeteer').Page} page
- * @param {string} folderPath
  * @param {string[]} urls
+ * @param {string} folderPath
  */
-export default function saveSelectedImages(page, folderPath, urls) {
+export default function saveSelectedImages(page, urls, folderPath = STORAGE_CONFIG.defaultStorage) {
 	if (!urls || !urls.length || !folderPath) {
 		console.log('> [Error] Thiếu URL hoặc thư mục lưu.');
 		return;

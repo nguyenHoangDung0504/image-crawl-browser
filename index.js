@@ -129,9 +129,10 @@ async function setupPage(page) {
 			const pageUrl = page.url();
 
 			if (lastURL !== pageUrl) {
+				const currentSize = imageMap.size;
 				imageMap.clear();
 				lastURL = pageUrl;
-				console.log(`> [Info] Navigation detected to [${pageUrl}] - Clearing ${imageMap.size} cached images`);
+				console.log(`> [Info] Navigation detected to [${pageUrl}] - Clearing [${currentSize}] cached images`);
 			} else console.log('> [Info] Reload detected, ignore clear images');
 
 			try {
