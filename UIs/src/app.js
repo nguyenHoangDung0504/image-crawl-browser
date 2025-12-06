@@ -1,4 +1,4 @@
-// Init ====================================================================================================================
+import { testImgURLs } from './test/imgURLs.js';
 
 document.readyState === 'loading'
 	? document.addEventListener('DOMContentLoaded', initImageSniffer)
@@ -19,7 +19,10 @@ async function initImageSniffer() {
 				return;
 			}
 
+			// @ts-expect-error: style.key = null có thể xóa đi style đó nhưng vi phạm type safety
+			setTimeout(() => (container.style.display = null), 200);
 			setupEventListeners(_shadowRoot);
+
 			return; // thành công -> thoát hàm
 		}
 
@@ -77,21 +80,7 @@ function setupEventListeners(root) {
 	}
 
 	if (inDevEnv()) {
-		populateImagesGrid(
-			[
-				'https://i3.hentaifox.com/004/3454912/thumb.jpg',
-				'https://i3.hentaifox.com/004/3454835/thumb.jpg',
-				'https://m9.imhentai.xxx/027/md9na4z1j6/cover.jpg',
-				'https://m10.imhentai.xxx/029/klfrjgzhdn/thumb.jpg',
-				'https://m10.imhentai.xxx/029/c4nh75m96x/thumb.jpg',
-				'https://m10.imhentai.xxx/029/wj9ms427hg/thumb.jpg',
-				'https://m10.imhentai.xxx/029/6ymwkd0qs3/thumb.jpg',
-				'https://m10.imhentai.xxx/029/5e18jt6nx0/cover.jpg',
-				'https://m8.imhentai.xxx/025/dtfla740pw/cover.jpg',
-			],
-			imagesGrid,
-			root
-		);
+		populateImagesGrid(testImgURLs, imagesGrid, root);
 		modal.classList.remove('hidden');
 		updateSelectedCount(root);
 	}
@@ -224,7 +213,11 @@ function setupEventListeners(root) {
 
 			await puppeteer.saveSelectedImages(selectedUrls, folder);
 
-			showToast(`Đã lưu thành công ${selectedUrls.length} ảnh vào thư mục "${folder ?? 'mặc định'}"!`, 'success', root);
+			showToast(
+				`Đã lưu thành công ${selectedUrls.length} ảnh vào thư mục "${folder ?? 'mặc định'}"!`,
+				'success',
+				root
+			);
 			closeModal();
 		} catch (error) {
 			console.error('Error saving images:', error);

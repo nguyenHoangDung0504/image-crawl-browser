@@ -1,65 +1,105 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { ensureUIServer } from '../internal_handlers/script-server.js';
 
 /**
+ * Inject Image Sniffer UI vào page với module support
  * @param {import('puppeteer').Page} page
  */
 export default async function injectSniffer(page) {
-	// Đọc file HTML và CSS từ disk
-	const htmlContent = fs.readFileSync(path.join(__dirname, '../UIs/index.html'), 'utf-8');
-	const cssContent = fs.readFileSync(path.join(__dirname, '../UIs/styles/style.css'), 'utf-8');
-	const jsContent = fs.readFileSync(path.join(__dirname, '../UIs/src/app.js'), 'utf-8');
+	try {
+		// Lazy start server - chỉ start khi cần
+		const serverPort = await ensureUIServer();
 
-	await page.evaluate((html, css, js) => {
-		// Đảm bảo DOM đã sẵn sàng
-		if (!document.body) {
-			console.error('> [Error] Document.body is not available');
-			return;
-		}
+		// Fetch HTML và CSS từ server
+		const htmlContent = await fetch(`http://localhost:${serverPort}/ui/index.html`)
+			.then((r) => {
+				if (!r.ok) throw new Error(`Failed to fetch HTML: ${r.status}`);
+				return r.text();
+			})
+			.catch((err) => {
+				console.warn('> [Warn] Cannot fetch index.html, using empty:', err.message);
+				return '<div id="app"></div>';
+			});
 
-		// Xóa container & style cũ nếu có
-		document.getElementById('image-sniffer-container')?.remove();
-		document.getElementById('image-sniffer-styles')?.remove();
+		// Inject vào page
+		await page.evaluate(
+			(html, port) => {
+				if (!document.body) {
+					console.error('> [Error] Document.body is not available');
+					return;
+				}
 
-		// Tạo container
-		const container = document.createElement('div');
-		container.id = 'image-sniffer-container';
-		container.style.cssText = 'all: initial; position: fixed; z-index: 999999;';
+				// Xóa container & styles cũ nếu có
+				document.getElementById('image-sniffer-container')?.remove();
+				document.getElementById('image-sniffer-styles')?.remove();
+				document.querySelectorAll('script[data-image-sniffer]').forEach((s) => s.remove());
 
-		let shadowRoot;
-		let usingShadowDOM = false;
+				// Tạo container
+				const container = document.createElement('div');
+				container.id = 'image-sniffer-container';
+				container.style.cssText = 'all: initial; position: fixed; z-index: 999999; display: none';
 
-		// Thử tạo Shadow DOM
-		try {
-			shadowRoot = container.attachShadow({ mode: 'open' });
-			usingShadowDOM = true;
-			console.log('Using Shadow DOM');
-		} catch (err) {
-			console.warn('Shadow DOM not supported, using isolated DOM');
-			shadowRoot = container;
-		}
+				let shadowRoot;
+				let usingShadowDOM = false;
 
-		// Inject CSS
-		{
-			const style = document.createElement('style');
-			style.id = 'image-sniffer-styles';
-			style.textContent = css;
+				// Thử tạo Shadow DOM
+				try {
+					shadowRoot = container.attachShadow({ mode: 'open' });
+					usingShadowDOM = true;
+					console.log('> [Info] Using Shadow DOM for Image Sniffer');
+				} catch (err) {
+					console.warn('> [Warn] Shadow DOM not supported, using regular DOM');
+					shadowRoot = container;
+				}
 
-			if (usingShadowDOM) shadowRoot.appendChild(style);
-			else document.head.appendChild(style);
-		}
+				// Inject CSS - Dùng <link> để CSS có thể resolve @import và url() từ localhost
+				const link = document.createElement('link');
+				link.rel = 'stylesheet';
+				link.href = `http://localhost:${port}/ui/styles/main.css`;
+				link.crossOrigin = 'anonymous';
+				link.id = 'image-sniffer-styles';
 
-		// Inject HTML
-		shadowRoot.appendChild(Object.assign(document.createElement('div'), { innerHTML: html }));
+				if (usingShadowDOM) {
+					shadowRoot.appendChild(link);
+				} else {
+					document.head.appendChild(link);
+				}
 
-		// Inject JavaScript
-		document.head.appendChild(Object.assign(document.createElement('script'), { textContent: js }));
+				// Inject HTML
+				const contentWrapper = document.createElement('div');
+				contentWrapper.innerHTML = html;
+				shadowRoot.appendChild(contentWrapper);
 
-		// Append container to body
-		document.body.appendChild(container);
-		console.log(`Image Sniffer UI injected successfully, using ${usingShadowDOM ? 'Shadow DOM' : 'Document'}`);
-	}, ...[htmlContent, cssContent, jsContent]);
+				// Inject JavaScript module từ localhost
+				const script = document.createElement('script');
+				script.type = 'module';
+				script.src = `http://localhost:${port}/ui/src/app.js`;
+				script.dataset.imageSniffer = 'true'; // Đánh dấu để dễ remove
+				script.crossOrigin = 'anonymous';
+
+				// Handle load success/error
+				script.onload = () => {
+					console.log('✓ Image Sniffer module loaded successfully from localhost:' + port);
+				};
+
+				script.onerror = (err) => {
+					console.error('✗ Failed to load Image Sniffer module:', err);
+					console.error('  Make sure app.js exists at: http://localhost:' + port + '/ui/src/app.js');
+				};
+
+				document.head.appendChild(script);
+				document.body.appendChild(container);
+
+				console.log(
+					`✓ Image Sniffer UI injected (${usingShadowDOM ? 'Shadow DOM' : 'Regular DOM'}) with module support`
+				);
+			},
+			htmlContent,
+			serverPort
+		);
+
+		console.log('> [Info] Image Sniffer injected successfully');
+	} catch (err) {
+		console.error('> [Error] Failed to inject Image Sniffer:', err);
+		throw err;
+	}
 }

@@ -1,3 +1,5 @@
+import { stopUIServer } from '../internal_handlers/script-server.js';
+
 /**
  * Đảm bảo thoát chương trình an toàn, chỉ gọi exit một lần.
  * @param {import('puppeteer').Browser} browser - Instance trình duyệt Puppeteer.
@@ -24,6 +26,7 @@ export default function setupBrowserExit(browser) {
 			console.warn('> [Warn] Đóng trình duyệt thất bại:', /**@type {Error}*/ (err).message);
 			code = 1;
 		} finally {
+			await stopUIServer();
 			setTimeout(() => process.exit(code), 500); // delay nhẹ để tránh exit trước khi browser flush
 		}
 	}
@@ -43,8 +46,9 @@ export default function setupBrowserExit(browser) {
 		exitSafely(1);
 	});
 
-	browser.on('disconnected', () => {
+	browser.on('disconnected', async () => {
 		if (isExiting) return;
+		await stopUIServer();
 		console.log('\n> [Info] Trình duyệt đã đóng. Chờ thoát.');
 	});
 
