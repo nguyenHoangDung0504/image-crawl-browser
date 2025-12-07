@@ -8,9 +8,11 @@ import { STORAGE_CONFIG } from '../../../user-configs.js';
  * @param {string[]} urls
  * @param {string} folderPath
  */
-export default function saveSelectedImages(page, urls, folderPath = STORAGE_CONFIG.defaultStorage) {
+export default function saveSelectedImages(page, urls, folderPath) {
+	folderPath = folderPath ? folderPath : `${STORAGE_CONFIG.defaultStorage}/${Date.now()}/`;
+
 	if (!urls || !urls.length || !folderPath) {
-		console.log('> [Error] Thiếu URL hoặc thư mục lưu.');
+		console.log('> [Error] Thiếu URL hoặc thư mục lưu.', folderPath);
 		return;
 	}
 	const imageReg = getPageImageRegistry(page);
