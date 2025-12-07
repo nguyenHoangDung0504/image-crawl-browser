@@ -1,5 +1,3 @@
-import { testImgURLs } from './test/imgURLs.js';
-
 document.readyState === 'loading'
 	? document.addEventListener('DOMContentLoaded', initImageSniffer)
 	: initImageSniffer();
@@ -80,9 +78,11 @@ function setupEventListeners(root) {
 	}
 
 	if (inDevEnv()) {
-		populateImagesGrid(testImgURLs, imagesGrid, root);
-		modal.classList.remove('hidden');
-		updateSelectedCount(root);
+		import('./test/imgURLs.js').then(({ testImgURLs }) => {
+			populateImagesGrid(testImgURLs, imagesGrid, root);
+			modal.classList.remove('hidden');
+			updateSelectedCount(root);
+		});
 	}
 
 	// Show modal when trigger button is clicked
